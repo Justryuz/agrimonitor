@@ -369,11 +369,112 @@ const FINANCE_MOBILE_MAP_LAYERS: MapLayers = {
 };
 
 // ============================================
+// FOOD SECURITY VARIANT
+// ============================================
+const FOOD_PANELS: Record<string, PanelConfig> = {
+  map: { name: 'Global Food Security Map', enabled: true, priority: 1 },
+  'live-news': { name: 'Food Security Headlines', enabled: true, priority: 1 },
+  'live-webcams': { name: 'Live Webcams', enabled: true, priority: 2 },
+  insights: { name: 'AI Food Security Insights', enabled: true, priority: 1 },
+  agriculture: { name: 'Sustainable Agriculture', enabled: true, priority: 1 },
+  'food-distribution': { name: 'Food Distribution Networks', enabled: true, priority: 1 },
+  'climate-impact': { name: 'Climate Impact on Food', enabled: true, priority: 1 },
+  'food-tech': { name: 'Food Technology & Innovation', enabled: true, priority: 1 },
+  'food-policy': { name: 'Food Security Policies', enabled: true, priority: 1 },
+  'global-hunger': { name: 'Global Hunger & Nutrition', enabled: true, priority: 1 },
+  commodities: { name: 'Agricultural Commodities', enabled: true, priority: 1 },
+  markets: { name: 'Food Markets', enabled: true, priority: 2 },
+  climate: { name: 'Climate Anomalies', enabled: true, priority: 2 },
+  economic: { name: 'Economic Indicators', enabled: true, priority: 2 },
+  africa: { name: 'Africa Food Security', enabled: true, priority: 1 },
+  asia: { name: 'Asia Food Security', enabled: true, priority: 1 },
+  latam: { name: 'Latin America Food Security', enabled: true, priority: 1 },
+  polymarket: { name: 'Predictions', enabled: true, priority: 2 },
+  monitors: { name: 'My Monitors', enabled: true, priority: 2 },
+};
+
+const FOOD_MAP_LAYERS: MapLayers = {
+  conflicts: true,
+  bases: false,
+  cables: false,
+  pipelines: false,
+  hotspots: true,
+  ais: false,
+  nuclear: false,
+  irradiators: false,
+  sanctions: true,
+  weather: true,
+  economic: true,
+  waterways: true,
+  outages: false,
+  cyberThreats: false,
+  datacenters: false,
+  protests: true,
+  flights: false,
+  military: false,
+  natural: true,
+  spaceports: false,
+  minerals: false,
+  fires: true,
+  ucdpEvents: false,
+  displacement: true,
+  climate: true,
+  startupHubs: false,
+  cloudRegions: false,
+  accelerators: false,
+  techHQs: false,
+  techEvents: false,
+  stockExchanges: false,
+  financialCenters: false,
+  centralBanks: false,
+  commodityHubs: true,
+  gulfInvestments: false,
+};
+
+const FOOD_MOBILE_MAP_LAYERS: MapLayers = {
+  conflicts: true,
+  bases: false,
+  cables: false,
+  pipelines: false,
+  hotspots: true,
+  ais: false,
+  nuclear: false,
+  irradiators: false,
+  sanctions: false,
+  weather: true,
+  economic: false,
+  waterways: false,
+  outages: false,
+  cyberThreats: false,
+  datacenters: false,
+  protests: true,
+  flights: false,
+  military: false,
+  natural: true,
+  spaceports: false,
+  minerals: false,
+  fires: true,
+  ucdpEvents: false,
+  displacement: true,
+  climate: true,
+  startupHubs: false,
+  cloudRegions: false,
+  accelerators: false,
+  techHQs: false,
+  techEvents: false,
+  stockExchanges: false,
+  financialCenters: false,
+  centralBanks: false,
+  commodityHubs: false,
+  gulfInvestments: false,
+};
+
+// ============================================
 // VARIANT-AWARE EXPORTS
 // ============================================
-export const DEFAULT_PANELS = SITE_VARIANT === 'tech' ? TECH_PANELS : SITE_VARIANT === 'finance' ? FINANCE_PANELS : FULL_PANELS;
-export const DEFAULT_MAP_LAYERS = SITE_VARIANT === 'tech' ? TECH_MAP_LAYERS : SITE_VARIANT === 'finance' ? FINANCE_MAP_LAYERS : FULL_MAP_LAYERS;
-export const MOBILE_DEFAULT_MAP_LAYERS = SITE_VARIANT === 'tech' ? TECH_MOBILE_MAP_LAYERS : SITE_VARIANT === 'finance' ? FINANCE_MOBILE_MAP_LAYERS : FULL_MOBILE_MAP_LAYERS;
+export const DEFAULT_PANELS = SITE_VARIANT === 'tech' ? TECH_PANELS : SITE_VARIANT === 'finance' ? FINANCE_PANELS : SITE_VARIANT === 'food' ? FOOD_PANELS : FULL_PANELS;
+export const DEFAULT_MAP_LAYERS = SITE_VARIANT === 'tech' ? TECH_MAP_LAYERS : SITE_VARIANT === 'finance' ? FINANCE_MAP_LAYERS : SITE_VARIANT === 'food' ? FOOD_MAP_LAYERS : FULL_MAP_LAYERS;
+export const MOBILE_DEFAULT_MAP_LAYERS = SITE_VARIANT === 'tech' ? TECH_MOBILE_MAP_LAYERS : SITE_VARIANT === 'finance' ? FINANCE_MOBILE_MAP_LAYERS : SITE_VARIANT === 'food' ? FOOD_MOBILE_MAP_LAYERS : FULL_MOBILE_MAP_LAYERS;
 
 /** Maps map-layer toggle keys to their data-freshness source IDs (single source of truth). */
 export const LAYER_TO_SOURCE: Partial<Record<keyof MapLayers, DataSourceId[]>> = {

@@ -962,8 +962,61 @@ const FINANCE_FEEDS: Record<string, Feed[]> = {
   ],
 };
 
+// Food Security variant feeds
+const FOOD_FEEDS: Record<string, Feed[]> = {
+  agriculture: [
+    { name: 'FAO News', url: rss('https://www.fao.org/feeds/fao-newsroom-rss') },
+    { name: 'FAO GIEWS', url: rss('https://news.google.com/rss/search?q=site:fao.org+GIEWS+food+security+when:30d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'CGIAR', url: rss('https://news.google.com/rss/search?q=site:cgiar.org+agriculture+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Sustainable Agriculture', url: rss('https://news.google.com/rss/search?q=("sustainable+agriculture"+OR+"regenerative+farming"+OR+"organic+farming")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Precision Agriculture', url: rss('https://news.google.com/rss/search?q=("precision+agriculture"+OR+"smart+farming"+OR+"agricultural+technology")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+  ],
+  'food-distribution': [
+    { name: 'WFP News', url: rss('https://news.google.com/rss/search?q=site:wfp.org+OR+"World+Food+Programme"+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Food Supply Chain', url: rss('https://news.google.com/rss/search?q=("food+supply+chain"+OR+"food+distribution"+OR+"food+logistics")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Food Waste', url: rss('https://news.google.com/rss/search?q=("food+waste"+OR+"food+loss"+OR+"food+recovery")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+  ],
+  'climate-impact': [
+    { name: 'Climate & Agriculture', url: rss('https://news.google.com/rss/search?q=("climate+change"+agriculture+OR+"climate+impact"+farming+OR+drought+crops)+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Crop Yields', url: rss('https://news.google.com/rss/search?q=("crop+yields"+OR+"harvest+forecast"+OR+"agricultural+production")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Water Scarcity', url: rss('https://news.google.com/rss/search?q=("water+scarcity"+OR+"irrigation"+OR+"water+stress"+agriculture)+when:7d&hl=en-US&gl=US&ceid=US:en') },
+  ],
+  'food-tech': [
+    { name: 'AgTech News', url: rss('https://news.google.com/rss/search?q=(AgTech+OR+"agricultural+technology"+OR+"farm+tech")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Vertical Farming', url: rss('https://news.google.com/rss/search?q=("vertical+farming"+OR+"indoor+farming"+OR+"controlled+environment+agriculture")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Alternative Protein', url: rss('https://news.google.com/rss/search?q=("plant-based+meat"+OR+"cultured+meat"+OR+"alternative+protein"+OR+"lab-grown+meat")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Food Innovation', url: rss('https://news.google.com/rss/search?q=("food+innovation"+OR+"food+technology"+OR+"food+science")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+  ],
+  'food-policy': [
+    { name: 'Food Security Policy', url: rss('https://news.google.com/rss/search?q=("food+security"+policy+OR+"food+policy"+OR+"agricultural+policy")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'USDA', url: rss('https://news.google.com/rss/search?q=site:usda.gov+OR+USDA+agriculture+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'EU Agriculture', url: rss('https://news.google.com/rss/search?q=("Common+Agricultural+Policy"+OR+"EU+agriculture"+OR+"CAP+reform")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Trade & Tariffs', url: rss('https://news.google.com/rss/search?q=(agricultural+trade+OR+food+exports+OR+agricultural+tariffs)+when:7d&hl=en-US&gl=US&ceid=US:en') },
+  ],
+  'global-hunger': [
+    { name: 'Global Hunger', url: rss('https://news.google.com/rss/search?q=("global+hunger"+OR+malnutrition+OR+"food+insecurity"+OR+famine)+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Nutrition', url: rss('https://news.google.com/rss/search?q=(nutrition+OR+"nutritional+security"+OR+"hidden+hunger"+OR+micronutrients)+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Food Aid', url: rss('https://news.google.com/rss/search?q=("food+aid"+OR+"humanitarian+assistance"+OR+"emergency+food")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+  ],
+  africa: [
+    { name: 'Africa Agriculture', url: rss('https://news.google.com/rss/search?q=(Africa+agriculture+OR+"African+farming"+OR+"Sahel+food+crisis")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'East Africa Food', url: rss('https://news.google.com/rss/search?q=(Ethiopia+OR+Kenya+OR+Somalia+OR+"East+Africa")+food+security+when:7d&hl=en-US&gl=US&ceid=US:en') },
+  ],
+  asia: [
+    { name: 'Asia Agriculture', url: rss('https://news.google.com/rss/search?q=(Asia+agriculture+OR+"Asian+farming"+OR+"rice+production")+when:7d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'India Food Security', url: rss('https://news.google.com/rss/search?q=India+(food+security+OR+agriculture+OR+farming)+when:7d&hl=en-US&gl=US&ceid=US:en') },
+  ],
+  latam: [
+    { name: 'Latin America Agriculture', url: rss('https://news.google.com/rss/search?q=("Latin+America"+agriculture+OR+Brazil+farming+OR+Argentina+crops)+when:7d&hl=en-US&gl=US&ceid=US:en') },
+  ],
+  commodities: [
+    { name: 'Agricultural Commodities', url: rss('https://news.google.com/rss/search?q=(wheat+OR+corn+OR+soybeans+OR+rice)+price+OR+commodity+when:3d&hl=en-US&gl=US&ceid=US:en') },
+    { name: 'Grain Markets', url: rss('https://news.google.com/rss/search?q=("grain+market"+OR+"wheat+price"+OR+"corn+futures")+when:3d&hl=en-US&gl=US&ceid=US:en') },
+  ],
+};
+
 // Variant-aware exports
-export const FEEDS = SITE_VARIANT === 'tech' ? TECH_FEEDS : SITE_VARIANT === 'finance' ? FINANCE_FEEDS : FULL_FEEDS;
+export const FEEDS = SITE_VARIANT === 'tech' ? TECH_FEEDS : SITE_VARIANT === 'finance' ? FINANCE_FEEDS : SITE_VARIANT === 'food' ? FOOD_FEEDS : FULL_FEEDS;
 
 export const INTEL_SOURCES: Feed[] = [
   // Defense & Security (Tier 1)
