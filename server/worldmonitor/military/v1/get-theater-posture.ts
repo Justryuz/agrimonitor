@@ -7,7 +7,7 @@ import type {
   TheaterPosture,
 } from '../../../../src/generated/server/worldmonitor/military/v1/service_server';
 
-import { getCachedJson, setCachedJson } from '../../../_shared/redis';
+import { getCachedJson, setCachedJson, cachedFetchJson } from '../../../_shared/redis';
 import {
   isMilitaryCallsign,
   isMilitaryHex,
@@ -29,6 +29,20 @@ const BACKUP_TTL = 604800;
 // Flight fetching (OpenSky + Wingbits fallback)
 // ========================================================================
 
+function getRelayRequestHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'User-Agent': CHROME_UA,
+  };
+  const relaySecret = process.env.RELAY_SHARED_SECRET;
+  if (relaySecret) {
+    const relayHeader = (process.env.RELAY_AUTH_HEADER || 'x-relay-key').toLowerCase();
+    headers[relayHeader] = relaySecret;
+    headers.Authorization = `Bearer ${relaySecret}`;
+  }
+  return headers;
+}
+
 async function fetchMilitaryFlightsFromOpenSky(): Promise<RawFlight[]> {
   const isSidecar = (process.env.LOCAL_API_MODE || '').includes('sidecar');
   const baseUrl = isSidecar
@@ -38,7 +52,7 @@ async function fetchMilitaryFlightsFromOpenSky(): Promise<RawFlight[]> {
   if (!baseUrl) return [];
 
   const resp = await fetch(baseUrl, {
-    headers: { Accept: 'application/json', 'User-Agent': CHROME_UA },
+    headers: getRelayRequestHeaders(),
     signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
   });
   if (!resp.ok) throw new Error(`OpenSky API error: ${resp.status}`);
@@ -169,43 +183,48 @@ function calculatePostures(flights: RawFlight[]): TheaterPosture[] {
 // RPC handler
 // ========================================================================
 
+async function fetchTheaterPostureFresh(): Promise<GetTheaterPostureResponse> {
+  let flights: RawFlight[];
+  const [openskyResult, wingbitsResult] = await Promise.allSettled([
+    fetchMilitaryFlightsFromOpenSky(),
+    fetchMilitaryFlightsFromWingbits(),
+  ]);
+
+  if (openskyResult.status === 'fulfilled' && openskyResult.value.length > 0) {
+    flights = openskyResult.value;
+  } else if (wingbitsResult.status === 'fulfilled' && wingbitsResult.value && wingbitsResult.value.length > 0) {
+    flights = wingbitsResult.value;
+  } else {
+    throw new Error('Both OpenSky and Wingbits unavailable');
+  }
+
+  const theaters = calculatePostures(flights);
+  const result: GetTheaterPostureResponse = { theaters };
+
+  await Promise.all([
+    setCachedJson(STALE_CACHE_KEY, result, STALE_TTL),
+    setCachedJson(BACKUP_CACHE_KEY, result, BACKUP_TTL),
+  ]).catch(() => {});
+
+  return result;
+}
+
 export async function getTheaterPosture(
   _ctx: ServerContext,
   _req: GetTheaterPostureRequest,
 ): Promise<GetTheaterPostureResponse> {
-  const cached = (await getCachedJson(CACHE_KEY)) as GetTheaterPostureResponse | null;
-  if (cached) return cached;
-
   try {
-    // Race both sources in parallel instead of sequential fallback (H-6 fix)
-    let flights: RawFlight[];
-    const [openskyResult, wingbitsResult] = await Promise.allSettled([
-      fetchMilitaryFlightsFromOpenSky(),
-      fetchMilitaryFlightsFromWingbits(),
-    ]);
+    const result = await cachedFetchJson<GetTheaterPostureResponse>(
+      CACHE_KEY,
+      CACHE_TTL,
+      fetchTheaterPostureFresh,
+    );
+    if (result) return result;
+  } catch { /* upstream failed — fall through to stale/backup */ }
 
-    if (openskyResult.status === 'fulfilled' && openskyResult.value.length > 0) {
-      flights = openskyResult.value;
-    } else if (wingbitsResult.status === 'fulfilled' && wingbitsResult.value && wingbitsResult.value.length > 0) {
-      flights = wingbitsResult.value;
-    } else {
-      throw new Error('Both OpenSky and Wingbits unavailable');
-    }
-
-    const theaters = calculatePostures(flights);
-    const result: GetTheaterPostureResponse = { theaters };
-
-    await Promise.all([
-      setCachedJson(CACHE_KEY, result, CACHE_TTL),
-      setCachedJson(STALE_CACHE_KEY, result, STALE_TTL),
-      setCachedJson(BACKUP_CACHE_KEY, result, BACKUP_TTL),
-    ]);
-    return result;
-  } catch {
-    const stale = (await getCachedJson(STALE_CACHE_KEY)) as GetTheaterPostureResponse | null;
-    if (stale) return stale;
-    const backup = (await getCachedJson(BACKUP_CACHE_KEY)) as GetTheaterPostureResponse | null;
-    if (backup) return backup;
-    return { theaters: [] };
-  }
+  const stale = (await getCachedJson(STALE_CACHE_KEY)) as GetTheaterPostureResponse | null;
+  if (stale) return stale;
+  const backup = (await getCachedJson(BACKUP_CACHE_KEY)) as GetTheaterPostureResponse | null;
+  if (backup) return backup;
+  return { theaters: [] };
 }

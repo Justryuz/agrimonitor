@@ -1,10 +1,10 @@
 import { Panel } from './Panel';
 import { fetchLiveVideoId } from '@/services/live-news';
-import { isDesktopRuntime, getRemoteApiBaseUrl } from '@/services/runtime';
-import { invokeTauri } from '@/services/tauri-bridge';
+import { isDesktopRuntime, getRemoteApiBaseUrl, getApiBaseUrl } from '@/services/runtime';
 import { t } from '../services/i18n';
 import { loadFromStorage, saveToStorage } from '@/utils';
-import { STORAGE_KEYS } from '@/config';
+import { STORAGE_KEYS, SITE_VARIANT } from '@/config';
+import { getStreamQuality } from '@/services/ai-flow-settings';
 
 // YouTube IFrame Player API types
 type YouTubePlayer = {
@@ -14,7 +14,9 @@ type YouTubePlayer = {
   pauseVideo(): void;
   loadVideoById(videoId: string): void;
   cueVideoById(videoId: string): void;
+  setPlaybackQuality?(quality: string): void;
   getIframe?(): HTMLIFrameElement;
+  getVolume?(): number;
   destroy(): void;
 };
 
@@ -52,7 +54,6 @@ export interface LiveChannel {
   useFallbackOnly?: boolean; // Skip auto-detection, always use fallback
 }
 
-const SITE_VARIANT = import.meta.env.VITE_VARIANT || 'full';
 
 // Full variant: World news channels (24/7 live streams)
 const FULL_LIVE_CHANNELS: LiveChannel[] = [
@@ -74,7 +75,59 @@ const TECH_LIVE_CHANNELS: LiveChannel[] = [
   { id: 'nasa', name: 'NASA TV', handle: '@NASA', fallbackVideoId: 'fO9e9jnhYK8', useFallbackOnly: true },
 ];
 
-const DEFAULT_LIVE_CHANNELS = SITE_VARIANT === 'tech' ? TECH_LIVE_CHANNELS : FULL_LIVE_CHANNELS;
+// Optional channels users can add from the "Available Channels" tab UI
+export const OPTIONAL_LIVE_CHANNELS: LiveChannel[] = [
+  // North America
+  { id: 'livenow-fox', name: 'LiveNOW from FOX', handle: '@LiveNOWfromFOX' },
+  { id: 'fox-news', name: 'Fox News', handle: '@FoxNews', fallbackVideoId: 'QaftgYkG-ek', useFallbackOnly: true },
+  { id: 'newsmax', name: 'Newsmax', handle: '@NEWSMAX', fallbackVideoId: 'cZikyozILOY', useFallbackOnly: true },
+  { id: 'abc-news', name: 'ABC News', handle: '@ABCNews' },
+  { id: 'cbs-news', name: 'CBS News', handle: '@CBSNews' },
+  { id: 'nbc-news', name: 'NBC News', handle: '@NBCNews' },
+  // Europe
+  { id: 'welt', name: 'WELT', handle: '@WELTNachrichtensender' },
+  { id: 'rtve', name: 'RTVE 24H', handle: '@RTVENoticias', fallbackVideoId: '7_srED6k0bE' },
+  { id: 'trt-haber', name: 'TRT Haber', handle: '@trthaber' },
+  { id: 'ntv-turkey', name: 'NTV', handle: '@NTV' },
+  { id: 'cnn-turk', name: 'CNN TURK', handle: '@cnnturk' },
+  { id: 'tv-rain', name: 'TV Rain', handle: '@tvrain' },
+  // Latin America & Portuguese
+  { id: 'cnn-brasil', name: 'CNN Brasil', handle: '@CNNbrasil', fallbackVideoId: '1kWRw-DA6Ns' },
+  { id: 'jovem-pan', name: 'Jovem Pan News', handle: '@jovempannews' },
+  { id: 'record-news', name: 'Record News', handle: '@recordnewsoficial' },
+  { id: 'band-jornalismo', name: 'Band Jornalismo', handle: '@BandJornalismo' },
+  { id: 'tn-argentina', name: 'TN (Todo Noticias)', handle: '@todonoticias', fallbackVideoId: 'cb12KmMMDJA' },
+  { id: 'c5n', name: 'C5N', handle: '@c5n', fallbackVideoId: 'NdQSOItOQ5Y' },
+  { id: 'milenio', name: 'MILENIO', handle: '@MILENIO' },
+  { id: 'noticias-caracol', name: 'Noticias Caracol', handle: '@NoticiasCaracol' },
+  { id: 'ntn24', name: 'NTN24', handle: '@NTN24' },
+  { id: 't13', name: 'T13', handle: '@T13' },
+  // Asia
+  { id: 'tbs-news', name: 'TBS NEWS DIG', handle: '@tbsnewsdig', fallbackVideoId: 'ohI356mwBp8' },
+  { id: 'ann-news', name: 'ANN News', handle: '@ANNnewsCH' },
+  { id: 'ntv-news', name: 'NTV News (Japan)', handle: '@ntv_news' },
+  { id: 'cti-news', name: 'CTI News (Taiwan)', handle: '@CtiTv', fallbackVideoId: 'wUPPkSANpyo', useFallbackOnly: true },
+  { id: 'wion', name: 'WION', handle: '@WIONews' },
+  { id: 'vtc-now', name: 'VTC NOW', handle: '@VTCNOW' },
+  { id: 'cna-asia', name: 'CNA (NewsAsia)', handle: '@channelnewsasia' },
+  { id: 'nhk-world', name: 'NHK World Japan', handle: '@NHKWORLDJAPAN' },
+  // Africa
+  { id: 'africanews', name: 'Africanews', handle: '@africanews' },
+  { id: 'channels-tv', name: 'Channels TV', handle: '@channelstv' },
+  { id: 'ktn-news', name: 'KTN News', handle: '@KTNNewsKE' },
+  { id: 'enca', name: 'eNCA', handle: '@enewschannel' },
+  { id: 'sabc-news', name: 'SABC News', handle: '@SABCNews' },
+];
+
+export const OPTIONAL_CHANNEL_REGIONS: { key: string; labelKey: string; channelIds: string[] }[] = [
+  { key: 'na', labelKey: 'components.liveNews.regionNorthAmerica', channelIds: ['livenow-fox', 'fox-news', 'newsmax', 'abc-news', 'cbs-news', 'nbc-news'] },
+  { key: 'eu', labelKey: 'components.liveNews.regionEurope', channelIds: ['welt', 'rtve', 'trt-haber', 'ntv-turkey', 'cnn-turk', 'tv-rain'] },
+  { key: 'latam', labelKey: 'components.liveNews.regionLatinAmerica', channelIds: ['cnn-brasil', 'jovem-pan', 'record-news', 'band-jornalismo', 'tn-argentina', 'c5n', 'milenio', 'noticias-caracol', 'ntn24', 't13'] },
+  { key: 'asia', labelKey: 'components.liveNews.regionAsia', channelIds: ['tbs-news', 'ann-news', 'ntv-news', 'cti-news', 'wion', 'vtc-now', 'cna-asia', 'nhk-world'] },
+  { key: 'africa', labelKey: 'components.liveNews.regionAfrica', channelIds: ['africanews', 'channels-tv', 'ktn-news', 'enca', 'sabc-news'] },
+];
+
+const DEFAULT_LIVE_CHANNELS = SITE_VARIANT === 'tech' ? TECH_LIVE_CHANNELS : SITE_VARIANT === 'happy' ? [] : FULL_LIVE_CHANNELS;
 
 /** Default channel list for the current variant (for restore in channel management). */
 export function getDefaultLiveChannels(): LiveChannel[] {
@@ -95,6 +148,7 @@ const DEFAULT_STORED: StoredLiveChannels = {
 export const BUILTIN_IDS = new Set([
   ...FULL_LIVE_CHANNELS.map((c) => c.id),
   ...TECH_LIVE_CHANNELS.map((c) => c.id),
+  ...OPTIONAL_LIVE_CHANNELS.map((c) => c.id),
 ]);
 
 export function loadChannelsFromStorage(): LiveChannel[] {
@@ -103,6 +157,7 @@ export function loadChannelsFromStorage(): LiveChannel[] {
   const channelMap = new Map<string, LiveChannel>();
   for (const c of FULL_LIVE_CHANNELS) channelMap.set(c.id, { ...c });
   for (const c of TECH_LIVE_CHANNELS) channelMap.set(c.id, { ...c });
+  for (const c of OPTIONAL_LIVE_CHANNELS) channelMap.set(c.id, { ...c });
   for (const c of stored.custom ?? []) {
     if (c.id && c.handle) channelMap.set(c.id, { ...c });
   }
@@ -123,7 +178,7 @@ export function saveChannelsToStorage(channels: LiveChannel[]): void {
   const order = channels.map((c) => c.id);
   const custom = channels.filter((c) => !BUILTIN_IDS.has(c.id));
   const builtinNames = new Map<string, string>();
-  for (const c of [...FULL_LIVE_CHANNELS, ...TECH_LIVE_CHANNELS]) builtinNames.set(c.id, c.name);
+  for (const c of [...FULL_LIVE_CHANNELS, ...TECH_LIVE_CHANNELS, ...OPTIONAL_LIVE_CHANNELS]) builtinNames.set(c.id, c.name);
   const displayNameOverrides: Record<string, string> = {};
   for (const c of channels) {
     if (builtinNames.has(c.id) && c.name !== builtinNames.get(c.id)) {
@@ -163,7 +218,19 @@ export class LiveNewsPanel extends Panel {
   private useDesktopEmbedProxy = false;
   private desktopEmbedIframe: HTMLIFrameElement | null = null;
   private desktopEmbedRenderToken = 0;
+  private suppressChannelClick = false;
   private boundMessageHandler!: (e: MessageEvent) => void;
+  private muteSyncInterval: ReturnType<typeof setInterval> | null = null;
+  private static readonly MUTE_SYNC_POLL_MS = 500;
+
+  // Bot-check detection: if player doesn't become ready within this timeout,
+  // YouTube is likely showing "Sign in to confirm you're not a bot".
+  private botCheckTimeout: ReturnType<typeof setTimeout> | null = null;
+  private static readonly BOT_CHECK_TIMEOUT_MS = 15_000;
+
+  private deferredInit = false;
+  private lazyObserver: IntersectionObserver | null = null;
+  private idleCallbackId: number | ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     super({ id: 'live-news', title: t('panels.liveNews') });
@@ -177,8 +244,66 @@ export class LiveNewsPanel extends Panel {
     this.createMuteButton();
     this.createChannelSwitcher();
     this.setupBridgeMessageListener();
-    this.renderPlayer();
+    this.renderPlaceholder();
+    this.setupLazyInit();
     this.setupIdleDetection();
+  }
+
+  private renderPlaceholder(): void {
+    this.content.innerHTML = '';
+    const container = document.createElement('div');
+    container.className = 'live-news-placeholder';
+    container.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:12px;cursor:pointer;';
+
+    const label = document.createElement('div');
+    label.style.cssText = 'color:var(--text-secondary);font-size:13px;';
+    label.textContent = this.activeChannel.name;
+
+    const playBtn = document.createElement('button');
+    playBtn.className = 'offline-retry';
+    playBtn.textContent = 'Load Player';
+    playBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.triggerInit();
+    });
+
+    container.appendChild(label);
+    container.appendChild(playBtn);
+    container.addEventListener('click', () => this.triggerInit());
+    this.content.appendChild(container);
+  }
+
+  private setupLazyInit(): void {
+    this.lazyObserver = new IntersectionObserver(
+      (entries) => {
+        if (entries.some(e => e.isIntersecting)) {
+          this.lazyObserver?.disconnect();
+          this.lazyObserver = null;
+          if ('requestIdleCallback' in window) {
+            this.idleCallbackId = (window as any).requestIdleCallback(
+              () => { this.idleCallbackId = null; this.triggerInit(); },
+              { timeout: 1000 },
+            );
+          } else {
+            this.idleCallbackId = setTimeout(() => { this.idleCallbackId = null; this.triggerInit(); }, 1000);
+          }
+        }
+      },
+      { threshold: 0.1 },
+    );
+    this.lazyObserver.observe(this.element);
+  }
+
+  private triggerInit(): void {
+    if (this.deferredInit) return;
+    this.deferredInit = true;
+    if (this.lazyObserver) { this.lazyObserver.disconnect(); this.lazyObserver = null; }
+    if (this.idleCallbackId !== null) {
+      if ('cancelIdleCallback' in window) (window as any).cancelIdleCallback(this.idleCallbackId);
+      else clearTimeout(this.idleCallbackId as ReturnType<typeof setTimeout>);
+      this.idleCallbackId = null;
+    }
+    this.renderPlayer();
   }
 
   private saveChannels(): void {
@@ -193,13 +318,16 @@ export class LiveNewsPanel extends Panel {
     this.boundMessageHandler = (e: MessageEvent) => {
       if (e.source !== this.desktopEmbedIframe?.contentWindow) return;
       const expected = this.embedOrigin;
-      if (e.origin !== expected && e.origin !== 'http://127.0.0.1:46123') return;
+      const localOrigin = getApiBaseUrl();
+      if (e.origin !== expected && (!localOrigin || e.origin !== localOrigin)) return;
       const msg = e.data;
       if (!msg || typeof msg !== 'object' || !msg.type) return;
       if (msg.type === 'yt-ready') {
+        this.clearBotCheckTimeout();
         this.isPlayerReady = true;
         this.syncDesktopEmbedState();
       } else if (msg.type === 'yt-error') {
+        this.clearBotCheckTimeout();
         const code = Number(msg.code ?? 0);
         if (code === 153 && this.activeChannel.fallbackVideoId &&
           this.activeChannel.videoId !== this.activeChannel.fallbackVideoId) {
@@ -207,6 +335,12 @@ export class LiveNewsPanel extends Panel {
           this.renderDesktopEmbed(true);
         } else {
           this.showEmbedError(this.activeChannel, code);
+        }
+      } else if (msg.type === 'yt-mute-state') {
+        const muted = msg.muted === true;
+        if (this.isMuted !== muted) {
+          this.isMuted = muted;
+          this.updateMuteIcon();
         }
       }
     };
@@ -274,7 +408,33 @@ export class LiveNewsPanel extends Panel {
     this.destroyPlayer();
   }
 
+  private stopMuteSyncPolling(): void {
+    if (this.muteSyncInterval !== null) {
+      clearInterval(this.muteSyncInterval);
+      this.muteSyncInterval = null;
+    }
+  }
+
+  private startMuteSyncPolling(): void {
+    this.stopMuteSyncPolling();
+    this.muteSyncInterval = setInterval(() => this.syncMuteStateFromPlayer(), LiveNewsPanel.MUTE_SYNC_POLL_MS);
+  }
+
+  private syncMuteStateFromPlayer(): void {
+    if (this.useDesktopEmbedProxy || !this.player || !this.isPlayerReady) return;
+    const p = this.player as { getVolume?(): number; isMuted?(): boolean };
+    const muted = typeof p.isMuted === 'function'
+      ? p.isMuted()
+      : (p.getVolume?.() === 0);
+    if (typeof muted === 'boolean' && muted !== this.isMuted) {
+      this.isMuted = muted;
+      this.updateMuteIcon();
+    }
+  }
+
   private destroyPlayer(): void {
+    this.clearBotCheckTimeout();
+    this.stopMuteSyncPolling();
     if (this.player) {
       this.player.destroy();
       this.player = null;
@@ -375,22 +535,16 @@ export class LiveNewsPanel extends Panel {
     const btn = document.createElement('button');
     btn.className = `live-channel-btn ${channel.id === this.activeChannel.id ? 'active' : ''}`;
     btn.dataset.channelId = channel.id;
-    btn.draggable = true;
     btn.textContent = channel.name;
+    btn.style.cursor = 'grab';
     btn.addEventListener('click', (e) => {
+      if (this.suppressChannelClick) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       e.preventDefault();
       this.switchChannel(channel);
-    });
-    btn.addEventListener('dragstart', (e) => {
-      btn.classList.add('live-channel-dragging');
-      if (e.dataTransfer) {
-        e.dataTransfer.setData('text/plain', channel.id);
-        e.dataTransfer.effectAllowed = 'move';
-      }
-    });
-    btn.addEventListener('dragend', () => {
-      btn.classList.remove('live-channel-dragging');
-      this.applyChannelOrderFromDom();
     });
     return btn;
   }
@@ -403,14 +557,34 @@ export class LiveNewsPanel extends Panel {
       this.channelSwitcher.appendChild(this.createChannelButton(channel));
     }
 
-    this.channelSwitcher.addEventListener('dragover', (e) => {
+    // Mouse-based drag reorder (works in WKWebView/Tauri)
+    let dragging: HTMLElement | null = null;
+    let dragStarted = false;
+    let startX = 0;
+    const THRESHOLD = 6;
+
+    this.channelSwitcher.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      const btn = (e.target as HTMLElement).closest('.live-channel-btn') as HTMLElement | null;
+      if (!btn) return;
+      this.suppressChannelClick = false;
+      dragging = btn;
+      dragStarted = false;
+      startX = e.clientX;
       e.preventDefault();
-      const dragging = this.channelSwitcher?.querySelector('.live-channel-dragging');
+    });
+
+    document.addEventListener('mousemove', (e) => {
       if (!dragging || !this.channelSwitcher) return;
-      const target = (e.target as HTMLElement).closest?.('.live-channel-btn');
+      if (!dragStarted) {
+        if (Math.abs(e.clientX - startX) < THRESHOLD) return;
+        dragStarted = true;
+        dragging.classList.add('live-channel-dragging');
+      }
+      const target = document.elementFromPoint(e.clientX, e.clientY)?.closest('.live-channel-btn') as HTMLElement | null;
       if (!target || target === dragging) return;
-      const all = Array.from(this.channelSwitcher.querySelectorAll('.live-channel-btn'));
-      const idx = all.indexOf(dragging as Element);
+      const all = Array.from(this.channelSwitcher!.querySelectorAll('.live-channel-btn'));
+      const idx = all.indexOf(dragging);
       const targetIdx = all.indexOf(target);
       if (idx === -1 || targetIdx === -1) return;
       if (idx < targetIdx) {
@@ -418,6 +592,20 @@ export class LiveNewsPanel extends Panel {
       } else {
         target.parentElement?.insertBefore(dragging, target);
       }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      if (dragStarted) {
+        dragging.classList.remove('live-channel-dragging');
+        this.applyChannelOrderFromDom();
+        this.suppressChannelClick = true;
+        setTimeout(() => {
+          this.suppressChannelClick = false;
+        }, 0);
+      }
+      dragging = null;
+      dragStarted = false;
     });
 
     const toolbar = document.createElement('div');
@@ -435,17 +623,49 @@ export class LiveNewsPanel extends Panel {
     openBtn.innerHTML =
       '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
     openBtn.addEventListener('click', () => {
-      if (isDesktopRuntime()) {
-        void invokeTauri<void>('open_live_channels_window_command', {
-          base_url: window.location.origin,
-        }).catch(() => {});
-        return;
-      }
-      const url = new URL(window.location.href);
-      url.searchParams.set('live-channels', '1');
-      window.open(url.toString(), 'worldmonitor-live-channels', 'width=440,height=560,scrollbars=yes');
+      this.openChannelManagementModal();
     });
     toolbar.appendChild(openBtn);
+  }
+
+  private openChannelManagementModal(): void {
+    const existing = document.querySelector('.live-channels-modal-overlay');
+    if (existing) return;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'live-channels-modal-overlay';
+    overlay.setAttribute('aria-modal', 'true');
+
+    const modal = document.createElement('div');
+    modal.className = 'live-channels-modal';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'live-channels-modal-close';
+    closeBtn.setAttribute('aria-label', t('common.close') ?? 'Close');
+    closeBtn.innerHTML = '&times;';
+
+    const container = document.createElement('div');
+
+    modal.appendChild(closeBtn);
+    modal.appendChild(container);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    requestAnimationFrame(() => overlay.classList.add('active'));
+
+    import('@/live-channels-window').then(({ initLiveChannelsWindow }) => {
+      initLiveChannelsWindow(container);
+    });
+
+    const close = () => {
+      overlay.remove();
+      this.refreshChannelsFromStorage();
+    };
+    closeBtn.addEventListener('click', close);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
   }
 
   private refreshChannelSwitcher(): void {
@@ -545,6 +765,7 @@ export class LiveNewsPanel extends Panel {
   }
 
   private ensurePlayerContainer(): void {
+    this.deferredInit = true;
     this.content.innerHTML = '';
     this.playerContainer = document.createElement('div');
     this.playerContainer.className = 'live-news-player';
@@ -560,13 +781,28 @@ export class LiveNewsPanel extends Panel {
     this.content.appendChild(this.playerContainer);
   }
 
-  private buildDesktopEmbedPath(videoId: string, origin?: string): string {
+  private get parentPostMessageOrigin(): string | null {
+    try {
+      const { origin, protocol } = window.location;
+      if (origin && origin !== 'null') return origin;
+      if (protocol === 'tauri:' || protocol === 'asset:') return '*';
+    } catch {
+      // Ignore invalid location values.
+    }
+    return null;
+  }
+
+  private buildDesktopEmbedPath(videoId: string): string {
     const params = new URLSearchParams({
       videoId,
       autoplay: this.isPlaying ? '1' : '0',
       mute: this.isMuted ? '1' : '0',
     });
-    if (origin) params.set('origin', origin);
+    if (this.youtubeOrigin) params.set('origin', this.youtubeOrigin);
+    const parentOrigin = this.parentPostMessageOrigin;
+    if (parentOrigin) params.set('parentOrigin', parentOrigin);
+    const quality = getStreamQuality();
+    if (quality !== 'auto') params.set('vq', quality);
     return `/api/youtube/embed?${params.toString()}`;
   }
 
@@ -639,6 +875,7 @@ export class LiveNewsPanel extends Panel {
 
     this.playerContainer.appendChild(iframe);
     this.desktopEmbedIframe = iframe;
+    this.startBotCheckTimeout();
   }
 
   private static loadYouTubeApi(): Promise<void> {
@@ -710,7 +947,7 @@ export class LiveNewsPanel extends Panel {
     if (this.player || !this.playerElement || !window.YT?.Player) return;
 
     this.player = new window.YT!.Player(this.playerElement, {
-      host: 'https://www.youtube-nocookie.com',
+      host: 'https://www.youtube.com',
       videoId: this.activeChannel.videoId,
       playerVars: {
         autoplay: this.isPlaying ? 1 : 0,
@@ -727,13 +964,18 @@ export class LiveNewsPanel extends Panel {
       },
       events: {
         onReady: () => {
+          this.clearBotCheckTimeout();
           this.isPlayerReady = true;
           this.currentVideoId = this.activeChannel.videoId || null;
           const iframe = this.player?.getIframe?.();
           if (iframe) iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+          const quality = getStreamQuality();
+          if (quality !== 'auto') this.player?.setPlaybackQuality?.(quality);
           this.syncPlayerState();
+          this.startMuteSyncPolling();
         },
         onError: (event) => {
+          this.clearBotCheckTimeout();
           const errorCode = Number(event?.data ?? 0);
 
           // Retry once with known fallback stream.
@@ -763,6 +1005,91 @@ export class LiveNewsPanel extends Panel {
         },
       },
     });
+
+    this.startBotCheckTimeout();
+  }
+
+  private startBotCheckTimeout(): void {
+    this.clearBotCheckTimeout();
+    this.botCheckTimeout = setTimeout(() => {
+      this.botCheckTimeout = null;
+      if (!this.isPlayerReady) {
+        this.showBotCheckPrompt();
+      }
+    }, LiveNewsPanel.BOT_CHECK_TIMEOUT_MS);
+  }
+
+  private clearBotCheckTimeout(): void {
+    if (this.botCheckTimeout) {
+      clearTimeout(this.botCheckTimeout);
+      this.botCheckTimeout = null;
+    }
+  }
+
+  private showBotCheckPrompt(): void {
+    const channel = this.activeChannel;
+    const watchUrl = channel.videoId
+      ? `https://www.youtube.com/watch?v=${encodeURIComponent(channel.videoId)}`
+      : `https://www.youtube.com/${encodeURIComponent(channel.handle)}`;
+
+    this.destroyPlayer();
+    this.content.innerHTML = '';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'live-offline';
+
+    const icon = document.createElement('div');
+    icon.className = 'offline-icon';
+    icon.textContent = '\u26A0\uFE0F';
+
+    const text = document.createElement('div');
+    text.className = 'offline-text';
+    text.textContent = t('components.liveNews.botCheck', { name: channel.name }) || 'YouTube is requesting sign-in verification';
+
+    const actions = document.createElement('div');
+    actions.className = 'bot-check-actions';
+
+    const signinBtn = document.createElement('button');
+    signinBtn.className = 'offline-retry bot-check-signin';
+    signinBtn.textContent = t('components.liveNews.signInToYouTube') || 'Sign in to YouTube';
+    signinBtn.addEventListener('click', () => this.openYouTubeSignIn());
+
+    const retryBtn = document.createElement('button');
+    retryBtn.className = 'offline-retry bot-check-retry';
+    retryBtn.textContent = t('common.retry') || 'Retry';
+    retryBtn.addEventListener('click', () => {
+      this.ensurePlayerContainer();
+      if (this.useDesktopEmbedProxy) {
+        this.renderDesktopEmbed(true);
+      } else {
+        void this.initializePlayer();
+      }
+    });
+
+    const ytLink = document.createElement('a');
+    ytLink.className = 'offline-retry';
+    ytLink.href = watchUrl;
+    ytLink.target = '_blank';
+    ytLink.rel = 'noopener noreferrer';
+    ytLink.textContent = t('components.liveNews.openOnYouTube') || 'Open on YouTube';
+
+    actions.append(signinBtn, retryBtn, ytLink);
+    wrapper.append(icon, text, actions);
+    this.content.appendChild(wrapper);
+  }
+
+  private async openYouTubeSignIn(): Promise<void> {
+    const youtubeLoginUrl = 'https://accounts.google.com/ServiceLogin?service=youtube&continue=https://www.youtube.com/';
+    if (isDesktopRuntime()) {
+      try {
+        const { tryInvokeTauri } = await import('@/services/tauri-bridge');
+        await tryInvokeTauri('open_youtube_login');
+      } catch {
+        window.open(youtubeLoginUrl, '_blank');
+      }
+    } else {
+      window.open(youtubeLoginUrl, '_blank');
+    }
   }
 
   private syncPlayerState(): void {
@@ -842,6 +1169,15 @@ export class LiveNewsPanel extends Panel {
   }
 
   public destroy(): void {
+    this.destroyPlayer();
+
+    if (this.lazyObserver) { this.lazyObserver.disconnect(); this.lazyObserver = null; }
+    if (this.idleCallbackId !== null) {
+      if ('cancelIdleCallback' in window) (window as any).cancelIdleCallback(this.idleCallbackId);
+      else clearTimeout(this.idleCallbackId as ReturnType<typeof setTimeout>);
+      this.idleCallbackId = null;
+    }
+
     if (this.idleTimeout) {
       clearTimeout(this.idleTimeout);
       this.idleTimeout = null;
@@ -853,14 +1189,7 @@ export class LiveNewsPanel extends Panel {
       document.removeEventListener(event, this.boundIdleResetHandler);
     });
 
-    if (this.player) {
-      this.player.destroy();
-      this.player = null;
-    }
-    this.desktopEmbedIframe = null;
-    this.isPlayerReady = false;
     this.playerContainer = null;
-    this.playerElement = null;
 
     super.destroy();
   }
