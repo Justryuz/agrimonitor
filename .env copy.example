@@ -20,7 +20,6 @@ GROQ_API_KEY=
 # Get yours at: https://openrouter.ai/
 OPENROUTER_API_KEY=
 
-
 # ------ Cross-User Cache (Vercel — Upstash Redis) ------
 
 # Used to deduplicate AI calls and cache risk scores across visitors.
