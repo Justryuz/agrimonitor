@@ -1860,15 +1860,6 @@ export class App {
               <span class="variant-icon">📈</span>
               <span class="variant-label">${t('header.finance')}</span>
             </a>
-            <span class="variant-divider"></span>
-            <a href="${this.isDesktopApp ? '#' : (SITE_VARIANT === 'food' ? '#' : 'https://food.worldmonitor.app')}"
-               class="variant-option ${SITE_VARIANT === 'food' ? 'active' : ''}"
-               data-variant="food"
-               ${!this.isDesktopApp && SITE_VARIANT !== 'food' ? 'target="_blank" rel="noopener"' : ''}
-               title="Food Security${SITE_VARIANT === 'food' ? ' (Current)' : ''}">
-              <span class="variant-icon">🌾</span>
-              <span class="variant-label">FOOD</span>
-            </a>
           </div>
           <span class="logo">MONITOR</span><span class="version">v${__APP_VERSION__}</span>${BETA_MODE ? '<span class="beta-badge">BETA</span>' : ''}
           <a href="https://x.com/eliehabib" target="_blank" rel="noopener" class="credit-link">
